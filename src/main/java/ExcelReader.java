@@ -2,31 +2,36 @@ import org.apache.poi.ss.usermodel.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ExcelReader {
 
+    private Workbook workbook;
 
-    public void readFile(String file) throws IOException {
-        Workbook workbook = WorkbookFactory.create(new File(file));
-        // Retrieving the number of sheets in the Workbook
-        System.out.println("Workbook has " + workbook.getNumberOfSheets() + " Sheets : ");
+    public ExcelReader(String file) throws IOException {
+        workbook = WorkbookFactory.create(new File(file));
+    }
 
+    public Workbook getWorkbook(){
+        return workbook;
+    }
+
+    public List<Sheet> getSheets(){
+        List<Sheet> sheets = new ArrayList<>();
         workbook.forEach(sheet -> {
-            System.out.println("=> " + sheet.getSheetName());
+            sheets.add(sheet);
         });
+        return sheets;
+    }
 
-        // Getting the Sheet at index zero
-        Sheet sheet = workbook.getSheetAt(0);
-
-        // Create a DataFormatter to format and get each cell's value as String
-        CellFormatter dataFormatter = new CellFormatter();
-
-        System.out.println("\n\nIterating over Rows and Columns using for-each loop\n");
+    public List<Cell> getCells(Sheet sheet){
+        List<Cell> cells = new ArrayList<>();
         for (Row row: sheet) {
             for(Cell cell: row) {
-                dataFormatter.printCellValue(cell);
+                cells.add(cell);
             }
-            System.out.println();
         }
+        return cells;
     }
 }
