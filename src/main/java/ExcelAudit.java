@@ -35,6 +35,7 @@ public class ExcelAudit {
             System.out.println();
         });
 
+        /* Create Ontology model */
         Model model = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM);
         File ontologyFile = new File(ONTOLOGY_PATH);
         model.read(ontologyFile.toURL().toString());
