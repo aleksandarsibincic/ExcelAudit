@@ -1,3 +1,9 @@
+import com.hp.hpl.jena.query.Dataset;
+import com.hp.hpl.jena.query.LabelExistsException;
+import com.hp.hpl.jena.query.ReadWrite;
+import com.hp.hpl.jena.sparql.core.DatasetGraph;
+import com.hp.hpl.jena.sparql.util.Context;
+import com.ontotext.trree.OwlimSchemaRepository;
 import org.apache.jena.base.Sys;
 import org.apache.jena.ontology.*;
 import org.apache.jena.rdf.model.Model;
@@ -9,16 +15,20 @@ import org.eclipse.rdf4j.model.impl.TreeModel;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.manager.LocalRepositoryManager;
 import org.eclipse.rdf4j.repository.manager.RepositoryManager;
+import org.eclipse.rdf4j.repository.sail.SailRepository;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class ExcelAudit {
 
     public static final String SAMPLE_XLSX_FILE_PATH = "./sample_file.xlsx";
-    public static final String ONTOLOGY_PATH = "./excel_ontology.owl" ;
+    public static final String ONTOLOGY_PATH = "./excel_ontology.owl";
     public static final String NAMESPACE = "http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#";
 
     public static void main(String[] args) throws IOException {
@@ -41,7 +51,7 @@ public class ExcelAudit {
         List<Cell> cells = excelReader.getCells(sheets.get(0));
         CellFormatter dataFormatter = new CellFormatter();
         cells.forEach(cell -> {
-            System.out.print(cell.getAddress().toString()+" ");
+            System.out.print(cell.getAddress().toString() + " ");
             dataFormatter.printCellValue(cell);
             System.out.println();
         });
@@ -54,33 +64,33 @@ public class ExcelAudit {
         /* adding data from excel to ontology model */
 
         /*create workbook class*/
-        OntClass workbookClass = model.getOntClass(NAMESPACE+"Workbook");
+        OntClass workbookClass = model.getOntClass(NAMESPACE + "Workbook");
         /*create workbook individual*/
-        Individual workbookIndividual = workbookClass.createIndividual(NAMESPACE+new File(SAMPLE_XLSX_FILE_PATH).getName());
+        Individual workbookIndividual = workbookClass.createIndividual(NAMESPACE + new File(SAMPLE_XLSX_FILE_PATH).getName());
         /*add filename property to the workbook*/
-        DatatypeProperty filename = model.getDatatypeProperty(NAMESPACE+"filename");
+        DatatypeProperty filename = model.getDatatypeProperty(NAMESPACE + "filename");
         workbookIndividual.addProperty(filename, new File(SAMPLE_XLSX_FILE_PATH).getName());
 
         /*get spreadsheet class*/
-        OntClass spreadsheetClass = model.getOntClass(NAMESPACE+"Spreadsheet");
+        OntClass spreadsheetClass = model.getOntClass(NAMESPACE + "Spreadsheet");
         /* get hasSheet relation/object property */
-        ObjectProperty hasSheets = model.getObjectProperty(NAMESPACE+"hasSheets");
+        ObjectProperty hasSheets = model.getObjectProperty(NAMESPACE + "hasSheets");
         /* get cell class */
-        OntClass cellClass = model.getOntClass(NAMESPACE+"Cell");
+        OntClass cellClass = model.getOntClass(NAMESPACE + "Cell");
         /* get hasCell relation/object property */
-        ObjectProperty hasCell = model.getObjectProperty(NAMESPACE+"hasCell");
+        ObjectProperty hasCell = model.getObjectProperty(NAMESPACE + "hasCell");
         /*get cell value property*/
-        DatatypeProperty value = model.getDatatypeProperty(NAMESPACE+"value");
-        sheets.forEach(sheet ->{
+        DatatypeProperty value = model.getDatatypeProperty(NAMESPACE + "value");
+        sheets.forEach(sheet -> {
             /* create spreadsheet individual*/
-            Individual spreadsheetIndividual = spreadsheetClass.createIndividual(NAMESPACE+sheet.getSheetName());
+            Individual spreadsheetIndividual = spreadsheetClass.createIndividual(NAMESPACE + sheet.getSheetName());
             /* add relations between workbook and sheet*/
             model.add(workbookIndividual, hasSheets, spreadsheetIndividual);
             /* get all cells from sheet */
             List<Cell> sheetCells = excelReader.getCells(sheet);
             sheetCells.forEach(cell -> {
                 /* create cell individual*/
-                Individual cellIndividual = cellClass.createIndividual(NAMESPACE+cell.getAddress().toString());
+                Individual cellIndividual = cellClass.createIndividual(NAMESPACE + cell.getAddress().toString());
                 /* add relations between sheet and cells*/
                 model.add(spreadsheetIndividual, hasCell, cellIndividual);
                 switch (cell.getCellTypeEnum()) {
@@ -101,15 +111,19 @@ public class ExcelAudit {
         model.write(System.out);
 
 
-        // Instantiate a local repository manager and initialize it
-        RepositoryManager repositoryManager = new LocalRepositoryManager(new File("."));
-        repositoryManager.initialize();
+        OwlimSchemaRepository schema = new OwlimSchemaRepository();
 
-        // Instantiate a repository graph model
-        TreeModel graph = new TreeModel();
+        // set the data folder where GraphDB will persist its data
+        schema.setDataDir(new File("./local-storage"));
 
-        //RepositoryConnection connection = EmbeddedGraphDB.openConnectionToTemporaryRepository("rdfs");
+        // configure GraphDB with some parameters
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("storage-folder", "./");
+        parameters.put("repository-type", "file-repository");
+        parameters.put("ruleset", "rdfs");
+        schema.setParameters(parameters);
 
+        //load model into apache TDB
 
     }
 }

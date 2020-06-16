@@ -49,8 +49,19 @@
         <dependency>
             <groupId>com.ontotext.graphdb</groupId>
             <artifactId>graphdb-free-runtime</artifactId>
-            <version>9.3.0</version>
+            <version>8.5.0</version>
         </dependency>
-
+        <!-- https://mvnrepository.com/artifact/org.apache.jena/jena-arq -->
+        <dependency>
+            <groupId>org.apache.jena</groupId>
+            <artifactId>jena-arq</artifactId>
+            <version>2.9.3</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.apache.jena/jena-tdb -->
+        <dependency>
+            <groupId>org.apache.jena</groupId>
+            <artifactId>jena-tdb</artifactId>
+            <version>3.15.0</version>
+        </dependency>
     </dependencies>
 </project>
