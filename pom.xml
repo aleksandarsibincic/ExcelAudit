@@ -45,5 +45,12 @@
             <artifactId>graphdb-free-runtime</artifactId>
             <version>9.3.0</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/com.ontotext.graphdb/graphdb-free-runtime -->
+        <dependency>
+            <groupId>com.ontotext.graphdb</groupId>
+            <artifactId>graphdb-free-runtime</artifactId>
+            <version>9.3.0</version>
+        </dependency>
+
     </dependencies>
 </project>
