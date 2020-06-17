@@ -1,14 +1,12 @@
-import com.hp.hpl.jena.query.Dataset;
-import com.hp.hpl.jena.query.LabelExistsException;
-import com.hp.hpl.jena.query.ReadWrite;
-import com.hp.hpl.jena.sparql.core.DatasetGraph;
-import com.hp.hpl.jena.sparql.util.Context;
 import com.ontotext.trree.OwlimSchemaRepository;
 import org.apache.jena.base.Sys;
 import org.apache.jena.ontology.*;
+import org.apache.jena.query.*;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Property;
+import org.apache.jena.tdb.TDB;
+import org.apache.jena.tdb.TDBFactory;
 import org.apache.poi.ss.formula.FormulaParser;
 import org.apache.poi.ss.usermodel.*;
 import org.eclipse.rdf4j.model.impl.TreeModel;
@@ -123,7 +121,33 @@ public class ExcelAudit {
         parameters.put("ruleset", "rdfs");
         schema.setParameters(parameters);
 
-        //load model into apache TDB
+        // store Ontology model to in memory TDB, which is not persisted over the sessions
+
+        Dataset dataset = TDBFactory.createDataset();
+        dataset.begin(ReadWrite.WRITE);
+        dataset.addNamedModel(NAMESPACE, model);
+        dataset.commit();
+
+        // extract saved ontology model from TDB and execute simple query
+
+        dataset.begin(ReadWrite.READ);
+        Model queryModel = dataset.getNamedModel(NAMESPACE);
+
+        String queryString = "PREFIX rdf: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#> " +
+                "SELECT * WHERE { ?Cell rdf:value \"4.0\" . }";
+        Query query = QueryFactory.create(queryString);
+        QueryExecution queryExecution = QueryExecutionFactory.create(query, queryModel);
+
+        ResultSet resultSet = queryExecution.execSelect();
+        try {
+            while (resultSet.hasNext()) {
+                QuerySolution solution = resultSet.nextSolution();
+                System.out.println(solution.get("Cell"));
+            }
+        } finally {
+            queryExecution.close();
+        }
+        dataset.commit();
 
     }
 }
