@@ -31,6 +31,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ExcelAudit {
 
@@ -46,22 +48,7 @@ public class ExcelAudit {
          */
 
         ExcelReader excelReader = new ExcelReader(SAMPLE_XLSX_FILE_PATH);
-        Workbook workbook = excelReader.getWorkbook();
-        System.out.println("Workbook named " + new File(SAMPLE_XLSX_FILE_PATH).getName());
-
         List<Sheet> sheets = excelReader.getSheets();
-        System.out.println("Workbook has " + sheets.size() + " Sheets : ");
-        sheets.forEach(sheet -> {
-            System.out.println("=> " + sheet.getSheetName());
-        });
-
-        List<Cell> cells = excelReader.getCells(sheets.get(0));
-        CellFormatter dataFormatter = new CellFormatter();
-        cells.forEach(cell -> {
-            System.out.print(cell.getAddress().toString() + " ");
-            dataFormatter.printCellValue(cell);
-            System.out.println();
-        });
 
         XSSFWorkbook wb = new XSSFWorkbook(new File(SAMPLE_XLSX_FILE_PATH));
         XSSFEvaluationWorkbook xssfew = XSSFEvaluationWorkbook.create(wb);
@@ -110,6 +97,15 @@ public class ExcelAudit {
                     double cellValue = cell.getNumericCellValue();
                     cellIndividual.addProperty(value, String.valueOf(cellValue));
                 }
+                else if (cell.getCellTypeEnum().equals(CellType.STRING)) {
+                    /* create cell individual*/
+                    Individual cellIndividual = cellClass.createIndividual(NAMESPACE + cell.getAddress().toString());
+                    /* add relations between sheet and cells*/
+                    model.add(spreadsheetIndividual, hasCell, cellIndividual);
+                    //add numerical value to cell
+                    String cellValue = cell.getStringCellValue();
+                    cellIndividual.addProperty(value, cellValue);
+                }
             });
             sheetCells.forEach(cell -> {
                 if (cell.getCellTypeEnum().equals(CellType.FORMULA)) {
@@ -119,32 +115,44 @@ public class ExcelAudit {
                     Ptg[] ptg = FormulaParser.parse(cell.getCellFormula(), xssfew, FormulaType.NAMEDRANGE, sheets.indexOf(sheet), cell.getRowIndex());
                     for (int i = 0; i < ptg.length; i++) {
                         byte cla = ptg[i].getPtgClass();
+                        if(cla == Ptg.CLASS_ARRAY){
+                            String formula = ptg[i].toFormulaString();
+                            String rangeFormulaPattern = "[A-Z]*\\$\\d*\\:[A-Z]*\\$\\d*";
+                            if(formula.matches(rangeFormulaPattern)){
+                                String column = "";
+                                String startRow = "";
+                                String endRow = formula.substring(formula.lastIndexOf("$") + 1);
+                                Pattern columnPattern = Pattern.compile("(.*?)\\$");
+                                Matcher columnMatcher = columnPattern.matcher(formula);
+                                if(columnMatcher.find()){
+                                    column = columnMatcher.group().replaceAll("\\$","");
+                                }
+                                Pattern startRowPattern = Pattern.compile("\\$(.*?)\\:");
+                                Matcher startRowMatcher = startRowPattern.matcher(formula);
+                                if(startRowMatcher.find()){
+                                    startRow = startRowMatcher.group().replaceAll("\\$","").replaceAll("\\:","");
+                                }
+                                for(int index = Integer.valueOf(startRow); index<=Integer.valueOf(endRow); index++){
+                                    Individual individualCell = model.getIndividual(NAMESPACE+column+index);
+                                    if(individualCell != null) {
+                                        model.add(individualCell, in, cellIndividual);
+                                    }
+
+                                }
+                            }
+                        }
                         if (cla == Ptg.CLASS_VALUE) {
                             String index = ptg[i].toFormulaString();
                             Individual individualCell = model.getIndividual(NAMESPACE+index);
-                            System.out.println(in);
-                            model.add(individualCell, in, cellIndividual);
-
+                            if(individualCell != null) {
+                                model.add(individualCell, in, cellIndividual);
+                            }
                         }
                     }
                 }
             });
         });
         model.write(System.out);
-
-
-        OwlimSchemaRepository schema = new OwlimSchemaRepository();
-
-        // set the data folder where GraphDB will persist its data
-        schema.setDataDir(new File("./local-storage"));
-
-        // configure GraphDB with some parameters
-        Map<String, String> parameters = new HashMap<>();
-        parameters.put("storage-folder", "./");
-        parameters.put("repository-type", "file-repository");
-        parameters.put("ruleset", "rdfs");
-        schema.setParameters(parameters);
-
         // store Ontology model to in memory TDB, which is not persisted over the sessions
 
         Dataset dataset = TDBFactory.createDataset();
