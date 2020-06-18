@@ -27,10 +27,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -99,8 +96,7 @@ public class ExcelAudit {
                     //add numerical value to cell
                     double cellValue = cell.getNumericCellValue();
                     cellIndividual.addProperty(value, String.valueOf(cellValue));
-                }
-                else if (cell.getCellTypeEnum().equals(CellType.STRING)) {
+                } else if (cell.getCellTypeEnum().equals(CellType.STRING)) {
                     /* create cell individual*/
                     Individual cellIndividual = cellClass.createIndividual(NAMESPACE + cell.getAddress().toString());
                     cellIndividual.addProperty(identifier, cell.getAddress().toString());
@@ -119,26 +115,26 @@ public class ExcelAudit {
                     Ptg[] ptg = FormulaParser.parse(cell.getCellFormula(), xssfew, FormulaType.NAMEDRANGE, sheets.indexOf(sheet), cell.getRowIndex());
                     for (int i = 0; i < ptg.length; i++) {
                         byte cla = ptg[i].getPtgClass();
-                        if(cla == Ptg.CLASS_ARRAY){
+                        if (cla == Ptg.CLASS_ARRAY) {
                             String formula = ptg[i].toFormulaString();
                             String rangeFormulaPattern = "[A-Z]*\\$\\d*\\:[A-Z]*\\$\\d*";
-                            if(formula.matches(rangeFormulaPattern)){
+                            if (formula.matches(rangeFormulaPattern)) {
                                 String column = "";
                                 String startRow = "";
                                 String endRow = formula.substring(formula.lastIndexOf("$") + 1);
                                 Pattern columnPattern = Pattern.compile("(.*?)\\$");
                                 Matcher columnMatcher = columnPattern.matcher(formula);
-                                if(columnMatcher.find()){
-                                    column = columnMatcher.group().replaceAll("\\$","");
+                                if (columnMatcher.find()) {
+                                    column = columnMatcher.group().replaceAll("\\$", "");
                                 }
                                 Pattern startRowPattern = Pattern.compile("\\$(.*?)\\:");
                                 Matcher startRowMatcher = startRowPattern.matcher(formula);
-                                if(startRowMatcher.find()){
-                                    startRow = startRowMatcher.group().replaceAll("\\$","").replaceAll("\\:","");
+                                if (startRowMatcher.find()) {
+                                    startRow = startRowMatcher.group().replaceAll("\\$", "").replaceAll("\\:", "");
                                 }
-                                for(int index = Integer.valueOf(startRow); index<=Integer.valueOf(endRow); index++){
-                                    Individual individualCell = model.getIndividual(NAMESPACE+column+index);
-                                    if(individualCell != null) {
+                                for (int index = Integer.valueOf(startRow); index <= Integer.valueOf(endRow); index++) {
+                                    Individual individualCell = model.getIndividual(NAMESPACE + column + index);
+                                    if (individualCell != null) {
                                         model.add(individualCell, in, cellIndividual);
                                     }
 
@@ -147,8 +143,8 @@ public class ExcelAudit {
                         }
                         if (cla == Ptg.CLASS_VALUE) {
                             String index = ptg[i].toFormulaString();
-                            Individual individualCell = model.getIndividual(NAMESPACE+index);
-                            if(individualCell != null) {
+                            Individual individualCell = model.getIndividual(NAMESPACE + index);
+                            if (individualCell != null) {
                                 model.add(individualCell, in, cellIndividual);
                             }
                         }
@@ -156,7 +152,7 @@ public class ExcelAudit {
                 }
             });
         });
-        model.write(System.out);
+        //model.write(System.out);
         // store Ontology model to in memory TDB, which is not persisted over the sessions
 
         Dataset dataset = TDBFactory.createDataset();
@@ -169,23 +165,34 @@ public class ExcelAudit {
         dataset.begin(ReadWrite.READ);
         Model queryModel = dataset.getNamedModel(NAMESPACE);
 
-        String queryString =
-                "PREFIX rdf: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#> " +
-                "PREFIX a2: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#A2> " +
-                "SELECT * WHERE { a2: rdf:in ?Cell . }";
-        Query query = QueryFactory.create(queryString);
-        QueryExecution queryExecution = QueryExecutionFactory.create(query, queryModel);
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Type cell (e.g. B3) to find dependent cells or !exit:");
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine();
+            if (line.equals("!exit")) {
+                scanner.close();
+            } else {
 
-        ResultSet resultSet = queryExecution.execSelect();
-        try {
-            while (resultSet.hasNext()) {
-                QuerySolution solution = resultSet.nextSolution();
-                System.out.println(solution.get("Cell"));
+                String queryString =
+                        "PREFIX rdf: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#> " +
+                                "PREFIX a2: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#"+line+"> " +
+                                "SELECT * WHERE { a2: rdf:in ?Cell . }";
+                Query query = QueryFactory.create(queryString);
+                QueryExecution queryExecution = QueryExecutionFactory.create(query, queryModel);
+
+                try {
+                    ResultSet resultSet = queryExecution.execSelect();
+                    while (resultSet.hasNext()) {
+                        QuerySolution solution = resultSet.nextSolution();
+                        System.out.println(solution.get("Cell"));
+                    }
+                    dataset.commit();
+                } catch (Exception e) {
+                    System.out.println(e);
+                    System.out.println("There was a problem executing query! Maybe you entered an invalid input.");
+                }
             }
-        } finally {
-            queryExecution.close();
         }
-        dataset.commit();
 
     }
 }
