@@ -78,6 +78,8 @@ public class ExcelAudit {
         ObjectProperty hasCell = model.getObjectProperty(NAMESPACE + "hasCell");
         /*get cell value property*/
         DatatypeProperty value = model.getDatatypeProperty(NAMESPACE + "value");
+        /*get cell identifier*/
+        DatatypeProperty identifier = model.getDatatypeProperty(NAMESPACE + "identifier");
         /*get cell relations*/
         ObjectProperty in = model.getObjectProperty(NAMESPACE + "in");
         sheets.forEach(sheet -> {
@@ -91,6 +93,7 @@ public class ExcelAudit {
                 if (cell.getCellTypeEnum().equals(CellType.NUMERIC) && !DateUtil.isCellDateFormatted(cell)) {
                     /* create cell individual*/
                     Individual cellIndividual = cellClass.createIndividual(NAMESPACE + cell.getAddress().toString());
+                    cellIndividual.addProperty(identifier, cell.getAddress().toString());
                     /* add relations between sheet and cells*/
                     model.add(spreadsheetIndividual, hasCell, cellIndividual);
                     //add numerical value to cell
@@ -100,6 +103,7 @@ public class ExcelAudit {
                 else if (cell.getCellTypeEnum().equals(CellType.STRING)) {
                     /* create cell individual*/
                     Individual cellIndividual = cellClass.createIndividual(NAMESPACE + cell.getAddress().toString());
+                    cellIndividual.addProperty(identifier, cell.getAddress().toString());
                     /* add relations between sheet and cells*/
                     model.add(spreadsheetIndividual, hasCell, cellIndividual);
                     //add numerical value to cell
@@ -165,8 +169,10 @@ public class ExcelAudit {
         dataset.begin(ReadWrite.READ);
         Model queryModel = dataset.getNamedModel(NAMESPACE);
 
-        String queryString = "PREFIX rdf: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#> " +
-                "SELECT * WHERE { ?Cell rdf:value \"4.0\" . }";
+        String queryString =
+                "PREFIX rdf: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#> " +
+                "PREFIX a2: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#A2> " +
+                "SELECT * WHERE { a2: rdf:in ?Cell . }";
         Query query = QueryFactory.create(queryString);
         QueryExecution queryExecution = QueryExecutionFactory.create(query, queryModel);
 
