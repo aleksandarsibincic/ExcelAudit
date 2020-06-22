@@ -1,4 +1,7 @@
+package app.service;
+
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
@@ -9,8 +12,8 @@ public class ExcelReader {
 
     private Workbook workbook;
 
-    public ExcelReader(String file) throws IOException {
-        workbook = WorkbookFactory.create(new File(file));
+    public ExcelReader(File file) throws IOException {
+        workbook = WorkbookFactory.create(file);
     }
 
     public Workbook getWorkbook(){

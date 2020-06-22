@@ -1,3 +1,5 @@
+package app.service;
+
 import com.ontotext.trree.OwlimSchemaRepository;
 import org.apache.jena.base.Sys;
 import org.apache.jena.ontology.*;
@@ -22,32 +24,35 @@ import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.manager.LocalRepositoryManager;
 import org.eclipse.rdf4j.repository.manager.RepositoryManager;
 import org.eclipse.rdf4j.repository.sail.SailRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.stereotype.Service;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class ExcelAudit {
+@Service
+public class ExcelAuditService {
 
-    public static final String SAMPLE_XLSX_FILE_PATH = "./sample_file.xlsx";
+//    public static final String SAMPLE_XLSX_FILE_PATH = "./sample_file.xlsx";
     public static final String ONTOLOGY_PATH = "./excel_ontology.owl";
     public static final String NAMESPACE = "http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#";
 
-    public static void main(String[] args) throws IOException, InvalidFormatException {
 
-        /*
-        prvi dio je vise vjezbanje da li radi excel
-        ovo ce kasnije sve brisati
-         */
+    public void processFile(byte[] file1) throws IOException, InvalidFormatException {
+        /* Create temporary file from bytes */
+        File file = new File("text.xlsx");
+        OutputStream os = new FileOutputStream(file);
+        os.write(file1);
+        os.close();
 
-        ExcelReader excelReader = new ExcelReader(SAMPLE_XLSX_FILE_PATH);
+        ExcelReader excelReader = new ExcelReader(file);
         List<Sheet> sheets = excelReader.getSheets();
 
-        XSSFWorkbook wb = new XSSFWorkbook(new File(SAMPLE_XLSX_FILE_PATH));
+        XSSFWorkbook wb = new XSSFWorkbook(file);
         XSSFEvaluationWorkbook xssfew = XSSFEvaluationWorkbook.create(wb);
 
         /* Create Ontology model */
@@ -60,10 +65,10 @@ public class ExcelAudit {
         /*create workbook class*/
         OntClass workbookClass = model.getOntClass(NAMESPACE + "Workbook");
         /*create workbook individual*/
-        Individual workbookIndividual = workbookClass.createIndividual(NAMESPACE + new File(SAMPLE_XLSX_FILE_PATH).getName());
+        Individual workbookIndividual = workbookClass.createIndividual(NAMESPACE + file.getName());
         /*add filename property to the workbook*/
         DatatypeProperty filename = model.getDatatypeProperty(NAMESPACE + "filename");
-        workbookIndividual.addProperty(filename, new File(SAMPLE_XLSX_FILE_PATH).getName());
+        workbookIndividual.addProperty(filename, file.getName());
 
         /*get spreadsheet class*/
         OntClass spreadsheetClass = model.getOntClass(NAMESPACE + "Spreadsheet");
@@ -149,10 +154,12 @@ public class ExcelAudit {
                             }
                         }
                     }
+                    cellIndividual.addProperty(value, String.valueOf(cell.getNumericCellValue()));
                 }
             });
         });
-        //model.write(System.out);
+        model.write(System.out);
+
         // store Ontology model to in memory TDB, which is not persisted over the sessions
 
         Dataset dataset = TDBFactory.createDataset();
@@ -160,23 +167,45 @@ public class ExcelAudit {
         dataset.addNamedModel(NAMESPACE, model);
         dataset.commit();
 
+        System.out.println("Application is ready");
+        Scanner scanner = new Scanner(System.in);
+
         // extract saved ontology model from TDB and execute simple query
 
         dataset.begin(ReadWrite.READ);
         Model queryModel = dataset.getNamedModel(NAMESPACE);
 
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("Type cell (e.g. B3) to find dependent cells or !exit:");
-        while (scanner.hasNextLine()) {
-            String line = scanner.nextLine();
-            if (line.equals("!exit")) {
-                scanner.close();
-            } else {
+        System.out.println("Choose an option a, b or c:");
+        System.out.println("a - Find dependent cells");
+        System.out.println("b - Find cells with certain value");
+        System.out.println("c - Upload a new file");
 
-                String queryString =
-                        "PREFIX rdf: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#> " +
-                                "PREFIX a2: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#"+line+"> " +
-                                "SELECT * WHERE { a2: rdf:in ?Cell . }";
+        while (scanner.hasNextLine()) {
+            String queryString = "";
+            String line = scanner.nextLine();
+            if (line.toLowerCase().equals("a")) {
+                System.out.println("Type cell (e.g. B3) to find dependent cells:");
+                if (scanner.hasNextLine()) {
+                    line = scanner.nextLine();
+                    queryString =
+                            "PREFIX rdf: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#> " +
+                                    "PREFIX a2: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#" + line + "> " +
+                                    "SELECT * WHERE { a2: rdf:in ?Cell . }";
+                }
+            } else if (line.toLowerCase().equals("b")) {
+                System.out.println("Type float value (e.g. 4.0) to find cells containing that value:");
+                if (scanner.hasNextLine()) {
+                    line = scanner.nextLine();
+                    queryString =
+                            "PREFIX rdf: <http://www.semanticweb.org/ds/ontologies/2020/5/excel-audit#> " +
+                                    "SELECT * WHERE { ?Cell rdf:value \"" + line + "\" . }";
+                }
+            } else if (line.toLowerCase().equals("c")) {
+                break;
+            }
+            if (queryString.equals("")) {
+                System.out.println("Non-existing option has been chosen");
+            } else {
                 Query query = QueryFactory.create(queryString);
                 QueryExecution queryExecution = QueryExecutionFactory.create(query, queryModel);
 
@@ -184,15 +213,21 @@ public class ExcelAudit {
                     ResultSet resultSet = queryExecution.execSelect();
                     while (resultSet.hasNext()) {
                         QuerySolution solution = resultSet.nextSolution();
-                        System.out.println(solution.get("Cell"));
+                        System.out.println(solution.get("Cell").toString().split("#")[1]);
                     }
-                    dataset.commit();
                 } catch (Exception e) {
-                    System.out.println(e);
                     System.out.println("There was a problem executing query! Maybe you entered an invalid input.");
                 }
             }
+
+            System.out.println("Choose an option a or b:");
+            System.out.println("a - Find dependent cells");
+            System.out.println("b - Find cells with certain value");
+            System.out.println("c - exit application");
         }
 
+        dataset.commit();
+        file.delete();
+        System.out.println("Upload xlsx file, you want to process, via post method http://localhost:8080/upload");
     }
 }
