@@ -72,5 +72,6 @@ These queries can be conducted to represent for example certain constraints like
 
 ## License
 
+[MIT](LICENSE.md)
 
 
